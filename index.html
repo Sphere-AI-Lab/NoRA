@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="author" content="NoRA Team">
+<meta name="description" content="NoRA: Normalized Low-Rank Adaptation — normalizing the LoRA down-projection along the rank dimension for faster, more stable, less forgetful adaptation.">
+<meta name="keywords" content="NoRA, LoRA, PEFT, normalization, low-rank adaptation, LLM, finetuning, RLVR, pretraining">
+<meta property="og:title" content="NoRA: Normalized Low-Rank Adaptation">
+<meta property="og:description" content="Normalizing the LoRA down-projection along the rank dimension for faster, more stable, less forgetful adaptation.">
+<meta property="og:image" content="static/images/fig1-nora-illustration.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="static/images/fig1-nora-illustration.png">
+<title>NoRA: Normalized Low-Rank Adaptation</title>
+
+<!-- TODO(fill in): favicon + apple-touch-icon
+<link rel="icon" type="image/png" sizes="32x32" href="static/images/favicon-32x32.png">
+<link rel="apple-touch-icon" sizes="180x180" href="static/images/apple-touch-icon.png">
+-->
+
+<link rel="stylesheet" href="css/fonts.css">
+<link rel="stylesheet" href="css/common.css">
+<link rel="stylesheet" href="css/typography.css">
+<link rel="stylesheet" href="css/blog-post.css">
+</head>
+<body>
+
+<div id="wrapper">
+
+  <header id="header">
+    <div id="site-header" class="site-header">
+      <div class="navbar-logo">
+        <!-- TODO(fill in): point at your blog hub -->
+        <a href="https://spherelab.ai/blog">Rotating Sphere</a>
+      </div>
+    </div>
+  </header>
+
+  <main id="main" class="post post-nora">
+
+    <div class="post-heading">
+      <h1 class="post-title">NoRA: Normalized Low-Rank Adaptation</h1>
+
+      <div class="publish-metadata nora-meta">
+        <span class="author">
+          Jiale Kang<sup>1,3</sup>,
+          Ziyin Yue,
+          Zheng Zhan<sup>2</sup>,
+          Yangyi Huang<sup>3</sup>,
+          Weiyang Liu<sup>3,4,*</sup>
+        </span>
+        <span class="affiliations"><sup>1</sup>Yuanshi Intelligence &nbsp; <sup>2</sup>Microsoft Research &nbsp; <sup>3</sup>The Chinese University of Hong Kong &nbsp; <sup>4</sup>Shenzhen Loop Area Institute</span>
+        <span class="author-notes"><sup>*</sup>Corresponding author</span>
+        <span class="meta-sub">Normalizing the LoRA down-projection along the rank dimension — faster convergence, more stable training, less forgetting, and no extra parameters.</span>
+        <span>August 2026</span>
+      </div>
+
+      <div class="post-links">
+        <!-- TODO(fill in): arXiv link -->
+        <a class="btn" href="NoRA_paper.pdf" target="_blank" rel="noopener noreferrer">
+          <span>Paper</span>
+        </a>
+        <!-- TODO(fill in): GitHub repository -->
+        <a class="btn" href="https://github.com/Joluck/NoRA" target="_blank" rel="noopener noreferrer">
+          <svg aria-hidden="true" focusable="false" viewBox="0 0 16 16" fill="currentColor">
+            <path fill-rule="evenodd" d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0016 8c0-4.42-3.58-8-8-8z"></path>
+          </svg>
+          <span>Code</span>
+        </a>
+        <a class="btn" href="#citation">
+          <span>Citation</span>
+        </a>
+      </div>
+    </div>
+
+    <div class="wide post-cover">
+      <img class="nora-cover" src="static/images/fig1-nora-illustration.png" alt="NoRA overview: each input-to-latent projection vector of the down-projection is normalized along the LoRA rank dimension; initial gradient norms of Finetune, LoRA, PiSSA, MiSS and NoRA across matrix ranks">
+      <p class="post-cover-caption"><strong>Left:</strong> each input-to-latent projection vector of the down-projection is normalized along the LoRA rank dimension. <strong>Right:</strong> initial gradient norms across ranks on LLaMA-3.2-3B trained on Math. NoRA and MiSS sit at full-finetuning level; LoRA and PiSSA fall far below it.</p>
+    </div>
+
+    <div class="post-content-shell">
+
+      <nav id="left-toc" class="left-toc has-active-marker" aria-label="Table of contents">
+        <ul class="toc-list">
+          <li class="toc-item is-active is-marker-target"><a href="#introduction" class="is-active" aria-current="location">Introduction</a></li>
+          <li class="toc-item"><a href="#abstract">Abstract</a></li>
+          <li class="toc-item"><a href="#down-projection">The down-projection</a></li>
+          <li class="toc-item"><a href="#method">NoRA</a></li>
+          <li class="toc-item"><a href="#init">NoRA-init and BIMI</a></li>
+          <li class="toc-item"><a href="#preconditioning">Why it works</a></li>
+          <li class="toc-item"><a href="#ablation">Which dimension?</a></li>
+          <li class="toc-item"><a href="#pretraining">Pretraining</a></li>
+          <li class="toc-item"><a href="#sft">Supervised finetuning</a></li>
+          <li class="toc-item"><a href="#rlvr">RLVR</a></li>
+          <li class="toc-item"><a href="#lessons">What we learn</a></li>
+          <li class="toc-item"><a href="#settings">Settings</a></li>
+          <li class="toc-item"><a href="#resources">Resources</a></li>
+          <li class="toc-item"><a href="#authors">Authors</a></li>
+          <li class="toc-item"><a href="#citation">Citation</a></li>
+        </ul>
+        <span class="toc-active-marker" aria-hidden="true" style="--toc-active-marker-y: 0px;"></span>
+      </nav>
+
+      <article class="content">
+
+        <blockquote id="introduction" class="epigraph">
+          LoRA's earliest optimization is decided entirely by the down-projection. That is where the scale problem lives, and where the fix belongs.
+        </blockquote>
+
+        <p id="abstract" class="lead">
+          LoRA is the default way to adapt a large model cheaply, but how to regularize its training dynamics is still largely unexplored. Because LoRA initializes the up-projection to zero, the down-projection <em>A</em> alone governs the early trajectory. NoRA normalizes <em>A</em> along the rank dimension — every column unit-norm — which keeps the update exactly linear in the input and exactly mergeable, while removing the arbitrary per-coordinate scale imbalance that random initialization introduces. The same normalization applied only once at initialization already recovers most of the gain.
+        </p>
+
+        <ul class="tldr-list">
+          <li><strong>The down-projection is an underused design dimension.</strong> With <em>B</em><sup>(0)</sup> = 0, <em>A</em> receives no gradient at step 0, so <em>A</em><sup>(0)</sup> fixes both the learning rates and the input subspace during the decisive early phase.</li>
+          <li><strong>Normalize along the rank dimension, not the input dimension.</strong> Column-wise normalization (Norm<sub>r</sub>) lifts the SFT average from 29.3 to 37.2; row-wise normalization (Norm<sub>k</sub>) does essentially nothing.</li>
+          <li><strong>Mergeability is preserved.</strong> Norm(<em>A</em>) depends only on the adapter parameters, not on the input, so &Delta;<em>y</em> = &alpha;<em>B</em>&thinsp;Norm(<em>A</em>)<em>x</em> stays linear in <em>x</em> and folds back into <em>W</em> after training.</li>
+          <li><strong>Initialization does most of the work.</strong> NoRA-init normalizes once and then trains as plain LoRA, reaching 42.38 SFT average against LoRA's 37.93; the persistent constraint adds the rest (43.37).</li>
+          <li><strong>It is a preconditioner correction.</strong> LoRA is full finetuning with the gradient right-multiplied by <em>P</em> = &alpha;<sup>2</sup><em>A</em><sup>&#8868;</sup><em>A</em>. NoRA sets diag(<em>P</em>) = <em>I</em> and keeps it there.</li>
+        </ul>
+
+        <h2 id="down-projection">The down-projection decides LoRA's early training</h2>
+
+        <p>
+          LoRA parameterizes the weight update of a pretrained matrix as &Delta;<em>W</em> = &alpha;<em>BA</em>, with <em>A</em> &isin; &#8477;<sup><em>r</em>&times;<em>k</em></sup> randomly initialized and <em>B</em> &isin; &#8477;<sup><em>d</em>&times;<em>r</em></sup> initialized to zero. The zero initialization is what preserves the pretrained model at step 0 — and it is also what makes the down-projection decisive. Writing <em>G</em> = &part;<em>L</em>/&part;<em>W</em> for the full-weight gradient:
+        </p>
+
+        <div class="formula">
+          <span class="formula-display">&part;<em>L</em>/&part;<em>B</em> |<sub><em>t</em>=0</sub> = &alpha;<em>G</em>(<em>A</em><sup>(0)</sup>)<sup>&#8868;</sup> &nbsp;&nbsp;&nbsp; &part;<em>L</em>/&part;<em>A</em> |<sub><em>t</em>=0</sub> = 0</span>
+          <span class="formula-note">The earliest optimization of LoRA is determined entirely by the latent representation induced by the initial projection <em>A</em><sup>(0)</sup>.</span>
+        </div>
+
+        <p>
+          Existing work already shows that initialization matters a great deal here. PiSSA and MiLoRA build the initial subspace from the spectral structure of the pretrained weights and converge faster than random initialization — but they require an SVD, they modify the pretrained decomposition, and they can be fragile in reinforcement learning. Other lines of work change the scaling, the parameterization, or freeze the projections. None of them asks the narrower question: what happens if we simply <em>regularize the magnitude</em> of the down-projection?
+        </p>
+
+        <p>
+          It helps to put existing methods in one frame. Every low-rank method builds a latent feature &phi;(<em>x</em>) &isin; &#8477;<sup><em>r</em></sup> that is handed to the up-projection, &Delta;<em>y</em> = &alpha;<em>B</em>&phi;(<em>x</em>):
+        </p>
+
+        <div class="evidence-table-wrap">
+          <table class="evidence-table">
+            <caption>A unified latent-feature view. Representative PEFT methods differ mainly in how they construct the latent feature presented to the up-projection, and in what they assume about the initialization.</caption>
+            <thead>
+              <tr><th>Method</th><th>Forward computation</th><th>Initialization / prior</th></tr>
+            </thead>
+            <tbody>
+              <tr class="group"><td colspan="3">Full-parameter and standard low-rank adaptation</td></tr>
+              <tr><td>Full finetuning</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em></td><td>&mdash;</td></tr>
+              <tr><td>LoRA</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em> + <em>BAx</em></td><td><em>A</em> ~ <em>N</em>(0, &sigma;<sup>2</sup>), <em>B</em> = 0</td></tr>
+              <tr class="group"><td colspan="3">Structured or constrained parameterizations</td></tr>
+              <tr><td>DoRA</td><td><em>y</em> = <em>m</em>&thinsp;(<em>W</em><sub>0</sub><em>x</em> + <em>BAx</em>) / &#8214;<em>W</em><sub>0</sub> + <em>BA</em>&#8214;<sub><em>c</em></sub></td><td>Kaiming init, <em>B</em> = 0</td></tr>
+              <tr><td>MiSS</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em> + expand(<em>D</em>)<em>x</em></td><td>Fixed structured projection</td></tr>
+              <tr><td>LoRA-FA</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em> + <em>BAx</em></td><td>Frozen random <em>A</em>, <em>B</em> = 0</td></tr>
+              <tr><td>VeRA</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em> + &Lambda;<sub><em>b</em></sub><em>B</em>&Lambda;<sub><em>d</em></sub><em>Ax</em></td><td>Frozen random <em>A</em>, <em>B</em></td></tr>
+              <tr class="group"><td colspan="3">Initialization-based low-rank adaptation</td></tr>
+              <tr><td>PiSSA</td><td><em>y</em> = (<em>W</em><sub>0</sub> &minus; <em>BA</em>)<em>x</em> + <em>BAx</em></td><td>Top-<em>r</em> SVD initialization</td></tr>
+              <tr><td>MiLoRA</td><td><em>y</em> = (<em>W</em><sub>0</sub> &minus; <em>BA</em>)<em>x</em> + <em>BAx</em></td><td>Minor-component SVD init</td></tr>
+              <tr class="row-highlight"><td>NoRA-init</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em> + <em>BAx</em></td><td><em>A</em> = Norm(<em>A</em>), <em>B</em> = 0</td></tr>
+              <tr class="row-highlight"><td>NoRA</td><td><em>y</em> = <em>W</em><sub>0</sub><em>x</em> + <em>B</em>&thinsp;Norm(<em>A</em>)<em>x</em></td><td><em>B</em> = 0</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="method">From normalized latent features to a normalized projection</h2>
+
+        <p>
+          Our starting observation comes from Multi-head Latent Attention. MLA constructs its low-dimensional latent as &phi;(<em>x</em>) = Norm(<em>Ax</em>), and that normalized bottleneck noticeably stabilizes training and speeds up convergence. The obvious move — drop the same operation into LoRA — does not work. Normalizing <em>Ax</em> makes the transformation depend on the input, so the update becomes nonlinear in <em>x</em> and can no longer be folded back into the pretrained weight matrix. LoRA's mergeability is exactly the property nobody wants to give up.
+        </p>
+
+        <p>
+          So we move the normalization off the feature and onto the matrix. Each column <em>a<sub>j</sub></em> of <em>A</em> &isin; &#8477;<sup><em>r</em>&times;<em>k</em></sup> describes how input coordinate <em>j</em> is projected into the <em>r</em>-dimensional latent space. Modern transformers are pre-normalized, so the input <em>x</em> to each linear layer is already scale-controlled; what remains uncontrolled is the spread of those column norms. NoRA fixes them:
+        </p>
+
+        <div class="formula">
+          <span class="formula-display">Norm(<em>A</em>) = [ <em>a</em><sub>1</sub> / max(&#8214;<em>a</em><sub>1</sub>&#8214;<sub>2</sub>, &epsilon;), &hellip; , <em>a<sub>k</sub></em> / max(&#8214;<em>a<sub>k</sub></em>&#8214;<sub>2</sub>, &epsilon;) ] &nbsp;&#8658;&nbsp; &#8214;[Norm(<em>A</em>)]<sub>:,<em>j</em></sub>&#8214;<sub>2</sub> = 1</span>
+          <span class="formula-display">&Delta;<em>y</em> = &alpha;<em>B</em>&thinsp;Norm(<em>A</em>)<em>x</em></span>
+          <span class="formula-note">Norm(&middot;) depends only on the adapter parameters, never on the input. The update stays linear in <em>x</em>, and after training the normalized down-projection is absorbed into &Delta;<em>W</em> — exact mergeability, unchanged inference cost.</span>
+        </div>
+
+        <blockquote>
+          The transition is from MLA's input-dependent latent normalization, <em>B</em>&thinsp;Norm(<em>Ax</em>), to NoRA's normalized low-rank projection, <em>B</em>&thinsp;Norm(<em>A</em>)<em>x</em>.
+        </blockquote>
+
+        <h2 id="init">NoRA-init and the block-identity variant</h2>
+
+        <p>
+          The normalization principle admits two ways of being applied. <strong>NoRA</strong> enforces it as a training constraint, re-normalizing <em>A</em> along the rank dimension throughout training. <strong>NoRA-init</strong> applies it once — <em>A</em><sup>(0)</sup> = Norm(<em>A</em><sub>init</sub>), <em>B</em><sup>(0)</sup> = 0 — and then trains with the standard LoRA parameterization, no re-normalization, no change to the optimizer. NoRA-init retains most of the benefit, which is itself the evidence that the early phase is where the scale problem does its damage.
+        </p>
+
+        <p>
+          There is also a deterministic way to satisfy the constraint. <strong>BIMI</strong> (Block Identity Matrix Initialization) builds <em>A</em> from repeated identity blocks: for <em>k</em> = <em>br</em> + <em>q</em> with 0 &le; <em>q</em> &lt; <em>r</em>,
+        </p>
+
+        <div class="formula">
+          <span class="formula-display"><em>A</em><sub>bimi</sub> = [ <em>I<sub>r</sub></em>, <em>I<sub>r</sub></em>, &hellip;, <em>I<sub>r</sub></em>, <em>E<sub>q</sub></em> ] &isin; &#8477;<sup><em>r</em>&times;<em>k</em></sup></span>
+          <span class="formula-note">Every column is a unit basis vector, so &#8214;(<em>A</em><sub>bimi</sub>)<sub>:,<em>j</em></sub>&#8214;<sub>2</sub> = 1 by construction — BIMI is a special case of NoRA-init. Both <em>A</em> and <em>B</em> stay fully trainable afterwards.</span>
+        </div>
+
+        <p>
+          This also explains an existing method. MiSS shares matrix shards, and its update &Delta;<em>y</em> = &alpha;<em>B</em>[<em>I<sub>r</sub></em>, &hellip;, <em>I<sub>r</sub></em>]<em>x</em> is precisely LoRA with a <em>fixed</em> block-identity down-projection — whose columns are already unit-norm. MiSS is therefore a special case of NoRA in which <em>A</em> is frozen at <em>A</em><sub>fix</sub>. That predicts MiSS should show the same early-gradient signature as NoRA, and in the figure above it does. BIMI is what you get by keeping the construction but letting the projection train.
+        </p>
+
+        <h2 id="preconditioning">Why it works: LoRA has a hidden preconditioner</h2>
+
+        <p>
+          Take a gradient step of size &eta; on <em>B</em> at initialization: &Delta;<em>B</em> = &minus;&eta;&alpha;<em>GA</em><sup>&#8868;</sup>, while <em>A</em> receives no gradient and stays fixed. The induced change of the merged weight is
+        </p>
+
+        <div class="formula">
+          <span class="formula-display">&Delta;<em>W</em> = &alpha;&thinsp;&Delta;<em>B</em>&thinsp;<em>A</em> = &minus;&eta;<em>GP</em>, &nbsp;&nbsp; <em>P</em> = &alpha;<sup>2</sup><em>A</em><sup>&#8868;</sup><em>A</em> &isin; &#8477;<sup><em>k</em>&times;<em>k</em></sup></span>
+          <span class="formula-note">Full finetuning is the same step with <em>P</em> = <em>I</em>. So at initialization — and approximately for as long as <em>B</em> stays small — LoRA <em>is</em> full finetuning with the gradient right-multiplied by a rank-<em>r</em> PSD matrix acting on the input coordinates. Right-multiplication by a <em>k</em>&times;<em>k</em> matrix is exactly where curvature-based methods place an input-side preconditioner.</span>
+        </div>
+
+        <p>
+          Reading <em>P</em> column by column makes the failure mode concrete. The column norms of <em>A</em> are per-coordinate learning rates:
+        </p>
+
+        <div class="formula">
+          <span class="formula-display">&Delta;<em>W</em><sub>:,<em>j</em></sub> = &minus;&eta; [ &alpha;<sup>2</sup>&#8214;<em>a<sub>j</sub></em>&#8214;<sub>2</sub><sup>2</sup> <em>G</em><sub>:,<em>j</em></sub> &nbsp;+&nbsp; &Sigma;<sub><em>i</em>&ne;<em>j</em></sub> &alpha;<sup>2</sup>(<em>a<sub>i</sub></em><sup>&#8868;</sup><em>a<sub>j</sub></em>) <em>G</em><sub>:,<em>i</em></sub> ]</span>
+          <span class="formula-note">First term: coordinate <em>j</em>'s own full-finetuning update, scaled by the squared length of its latent. Second term: crosstalk from the rank bottleneck, with coefficients given by inner products of latent directions.</span>
+        </div>
+
+        <div class="metric-grid">
+          <div class="card">
+            <div class="card-num">Problem 1</div>
+            <div class="card-title">Rates are far too small</div>
+            <p class="card-text">For zero-mean i.i.d. entries with &sigma;<sup>2</sup> &prop; 1/<em>k</em>, E&#8214;<em>a<sub>j</sub></em>&#8214;<sup>2</sup> = <em>r</em>&sigma;<sup>2</sup> &prop; <em>r</em>/<em>k</em> &#8810; 1. At any moderate &alpha;, gradient flows through the adapter at a small fraction of the full-finetuning rate.</p>
+          </div>
+          <div class="card">
+            <div class="card-num">Problem 2</div>
+            <div class="card-title">Rates are unbalanced</div>
+            <p class="card-text">&#8214;<em>a<sub>j</sub></em>&#8214;<sup>2</sup> fluctuates around its mean with relative spread of order 1/&radic;<em>r</em>. At small rank, each input coordinate is handed a learning rate at random — unrelated to the data or the curvature.</p>
+          </div>
+          <div class="card">
+            <div class="card-num">The fix</div>
+            <div class="card-title">diag(<em>P</em>) = <em>I</em></div>
+            <p class="card-text">Setting every &#8214;<em>a<sub>j</sub></em>&#8214;<sub>2</sub> = 1 with &alpha; = <em>r</em> (under the &alpha;/<em>r</em> convention) makes diag(<em>P</em>) = <em>I</em> deterministically and E[<em>P</em>] = <em>I</em>, so the adapter's gradient norm matches full finetuning's in expectation, independent of <em>r</em>.</p>
+          </div>
+        </div>
+
+        <p>
+          A preconditioner should remove distortion, not add its own. Two consequences follow, and both are testable. Row normalization (Norm<sub><em>k</em></sub>) leaves diag(<em>P</em>) random of order <em>r</em>/<em>k</em>, so it should bring no gain — and it does not. BIMI uses unit basis vectors as columns, giving the same diagonal through a <em>completely different</em> crosstalk pattern, so if the diagonal is what matters it should perform like normalized random initialization — and it does. That points at diag(<em>P</em>) as the decisive quantity.
+        </p>
+
+        <p>
+          Finally, why keep the constraint at all if initialization does most of the work? Because it adds two things. The loss becomes invariant to each column's scale, so gradients are tangential and, under gradient descent, norms can only grow while the effective step anneals automatically — the familiar behaviour of weight-normalized training. And diag(<em>P</em>) = <em>I</em> is enforced for the whole run on a compact set of directions, so the latent scale can neither collapse nor explode, while the update stays linear in <em>x</em> and merges exactly.
+        </p>
+
+        <h2 id="ablation">Which dimension should be normalized?</h2>
+
+        <p>
+          Given <em>A</em> &isin; &#8477;<sup><em>r</em>&times;<em>k</em></sup>, there are two normalizations to try: Norm<sub><em>k</em></sub> normalizes each row, Norm<sub><em>r</em></sub> normalizes each column <em>A</em><sub>:,<em>j</em></sub> &isin; &#8477;<sup><em>r</em></sup>. The preconditioning argument says only the second one should matter, and only the second one does. Norm<sub><em>r</em></sub> adds roughly seven points of average accuracy under every initialization distribution we tried; Norm<sub><em>k</em></sub> adds nothing. The benefit is essentially independent of the initialization distribution, and BIMI — deterministic, no randomness at all — lands in the same place.
+        </p>
+
+        <div class="evidence-table-wrap">
+          <table class="evidence-table">
+            <caption>Effect of the normalization dimension under supervised finetuning (Llama-3.2-3B). The average is computed over accuracies on GSM8K and Math.</caption>
+            <thead>
+              <tr><th>Initialization</th><th>Method</th><th>GSM8K</th><th>Math</th><th>Avg.</th></tr>
+            </thead>
+            <tbody>
+              <tr><td rowspan="3"><em>U</em>(&minus;1/&radic;<em>k</em>, 1/&radic;<em>k</em>)</td><td>None</td><td>47.68</td><td>10.86</td><td>29.27</td></tr>
+              <tr><td>Norm<sub><em>k</em></sub></td><td>48.67</td><td>10.82</td><td>29.75</td></tr>
+              <tr class="row-highlight"><td>Norm<sub><em>r</em></sub></td><td>60.12</td><td>14.20</td><td><strong>37.16</strong></td></tr>
+              <tr><td rowspan="3"><em>N</em>(0, 1/<em>r</em><sup>2</sup>)</td><td>None</td><td>50.41</td><td>11.68</td><td>31.05</td></tr>
+              <tr><td>Norm<sub><em>k</em></sub></td><td>49.73</td><td>11.34</td><td>30.54</td></tr>
+              <tr class="row-highlight"><td>Norm<sub><em>r</em></sub></td><td>59.96</td><td>13.93</td><td><strong>36.95</strong></td></tr>
+              <tr><td rowspan="3"><em>U</em>(&minus;1, 1)</td><td>None</td><td>48.19</td><td>11.02</td><td>29.61</td></tr>
+              <tr><td>Norm<sub><em>k</em></sub></td><td>48.29</td><td>10.86</td><td>29.58</td></tr>
+              <tr class="row-highlight"><td>Norm<sub><em>r</em></sub></td><td>58.98</td><td>14.34</td><td><strong>36.66</strong></td></tr>
+              <tr><td>[<em>I<sub>r</sub></em>, &hellip;, <em>I<sub>r</sub></em>]</td><td>BIMI</td><td>59.89</td><td>14.24</td><td><strong>37.07</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="pretraining">Pretraining: normalization prevents optimization collapse</h2>
+
+        <p>
+          We start from controlled MLA experiments, where normalizing the latent <em>Ax</em> consistently improves performance and accelerates convergence, and then carry the same principle over to the linear low-rank form. Under MLA, NoRA-init converges faster and scores better than the standard low-rank parameterization; it remains slightly behind directly normalizing <em>Ax</em>, but it keeps the <em>BAx</em> structure and with it the mergeability and deployment efficiency.
+        </p>
+
+        <p>
+          The MHA setting is where the difference becomes dramatic. Parameterizing every attention projection (<em>q</em>, <em>k</em>, <em>v</em>, <em>o</em>) with rank <em>r</em> = 64 low-rank factors, the standard parameterization collapses outright on LAMBADA and degrades badly elsewhere; its gradient norms fall to abnormally low levels during training. NoRA-init keeps gradient magnitudes well-scaled throughout and avoids the collapse entirely. Capacity alone does not determine optimization behaviour — under the same rank constraint, changing only the initialization of the projection changes the training dynamics.
+        </p>
+
+        <div class="benchmark-table-wrap" role="region" aria-label="Pretraining results" tabindex="0">
+          <table class="benchmark-table">
+            <caption>Zero-shot performance of 340M models trained on SlimPajama. Commonsense reasoning tasks are evaluated with lm-evaluation-harness; the recall-intensive task (&dagger;) follows prefix-linear-attention with 2K input tokens. &ldquo;&mdash;&rdquo; indicates a collapse in perplexity.</caption>
+            <thead>
+              <tr>
+                <th>Model &amp; scale</th><th>Params</th>
+                <th>Lamb.&dagger; ppl&darr;</th><th>Wiki. ppl&darr;</th>
+                <th>Lamb. acc&uarr;</th><th>ARCe</th><th>ARCc</th><th>Hella.</th><th>PIQA</th><th>Wino.</th><th>OBQA</th><th>Avg.&uarr;</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="group"><td colspan="12">MLA &mdash; 10B training tokens, 0.5M batch tokens</td></tr>
+              <tr><td><em>B</em>&thinsp;Norm(<em>Ax</em>)</td><td>342.4M</td><td>48.73</td><td>32.24</td><td>30.62</td><td>56.99</td><td>27.56</td><td>36.26</td><td>63.49</td><td>51.30</td><td>22.00</td><td><strong>41.17</strong></td></tr>
+              <tr><td><em>BAx</em></td><td>342.4M</td><td>61.83</td><td>32.89</td><td>28.70</td><td>54.63</td><td>26.02</td><td>35.88</td><td>63.66</td><td>51.62</td><td>22.00</td><td>40.36</td></tr>
+              <tr class="row-highlight"><td><em>BA</em><em>x</em> <span style="color:var(--fg4)">(NoRA-init)</span></td><td>342.4M</td><td>50.77</td><td>32.42</td><td>29.87</td><td>54.04</td><td>26.37</td><td>36.11</td><td>63.76</td><td>52.72</td><td>21.60</td><td>40.64</td></tr>
+              <tr class="group"><td colspan="12">MHA &mdash; 10B training tokens, 0.5M batch tokens</td></tr>
+              <tr><td><em>Wx</em> (full)</td><td>348.7M</td><td>47.95</td><td>31.31</td><td>30.55</td><td>54.59</td><td>26.45</td><td>36.95</td><td>65.07</td><td>51.22</td><td>22.60</td><td><strong>41.06</strong></td></tr>
+              <tr><td><em>BAx</em></td><td>289.3M</td><td>&mdash;</td><td>&mdash;</td><td>0.00</td><td>25.17</td><td>28.07</td><td>25.97</td><td>49.78</td><td>49.49</td><td>16.20</td><td>27.81</td></tr>
+              <tr class="row-highlight"><td><em>BA</em><em>x</em> <span style="color:var(--fg4)">(NoRA-init)</span></td><td>289.3M</td><td>63.45</td><td>34.39</td><td>28.29</td><td>54.38</td><td>26.02</td><td>35.10</td><td>63.49</td><td>50.91</td><td>19.60</td><td>39.69</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="sft">Supervised finetuning: adaptation without spending retention</h2>
+
+        <p>
+          On Llama-3.2-3B across mathematical reasoning and code generation, NoRA gives the best overall SFT average among the compared methods, lifting LoRA's 37.93 to 43.37 — a gain of 5.44 points — with particularly clear improvements on GSM8K (50.94 &rarr; 61.63) and HumanEval (37.20 &rarr; 42.10). It also outperforms PiSSA, OFT, rsLoRA and MiSS on average, at the same 48.6M trainable parameters as LoRA.
+        </p>
+
+        <p>
+          The split between the two variants is informative. NoRA-init alone reaches 42.38, capturing most of the gap; maintaining the constraint through training adds the remaining point. Controlling the input-to-latent magnitude at initialization accounts for the bulk of the benefit, and persistent normalization contributes a further, smaller improvement.
+        </p>
+
+        <div class="benchmark-table-wrap" role="region" aria-label="Supervised finetuning results" tabindex="0">
+          <table class="benchmark-table">
+            <caption>PEFT methods under supervised finetuning (Llama-3.2-3B) and on retained general benchmarks. Retention columns show absolute accuracy with the change from the base model; the last column is the average change. Larger is better everywhere.</caption>
+            <thead>
+              <tr>
+                <th>Method</th><th>Trainable</th>
+                <th>GSM8K</th><th>Math</th><th>HumanEval</th><th>MBPP</th><th>SFT avg.</th>
+                <th>MMLU</th><th>AGIEval</th><th>ARC-C</th><th>Avg. &Delta;</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Base model</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>&mdash;</td><td>55.10</td><td>23.99</td><td>42.92</td><td>0.00</td></tr>
+              <tr><td>Full FT</td><td>3B</td><td>65.12</td><td>17.96</td><td>36.15</td><td>49.05</td><td>42.07</td><td>54.17<span class="delta down">&minus;0.93</span></td><td>26.25<span class="delta up">+2.26</span></td><td>41.64<span class="delta down">&minus;1.28</span></td><td>+0.02</td></tr>
+              <tr><td>PiSSA</td><td>48.6M</td><td>54.66</td><td>12.08</td><td>39.00</td><td>55.30</td><td>40.26</td><td>54.43<span class="delta down">&minus;0.67</span></td><td>23.99<span class="delta">+0.00</span></td><td>42.75<span class="delta down">&minus;0.17</span></td><td>&minus;0.28</td></tr>
+              <tr><td>OFT</td><td>53.7M</td><td>56.10</td><td>13.02</td><td>38.40</td><td>54.20</td><td>40.43</td><td>54.72<span class="delta down">&minus;0.38</span></td><td>25.23<span class="delta up">+1.25</span></td><td>43.60<span class="delta up">+0.68</span></td><td><strong>+0.52</strong></td></tr>
+              <tr><td>rsLoRA</td><td>48.6M</td><td>57.05</td><td>12.32</td><td>39.65</td><td>56.10</td><td>41.28</td><td>54.07<span class="delta down">&minus;1.03</span></td><td>24.58<span class="delta up">+0.60</span></td><td>41.81<span class="delta down">&minus;1.11</span></td><td>&minus;0.51</td></tr>
+              <tr><td>MiSS</td><td>49.5M</td><td>60.80</td><td>14.60</td><td>39.60</td><td>55.80</td><td>42.70</td><td>53.40<span class="delta down">&minus;1.50</span></td><td>24.33<span class="delta up">+0.34</span></td><td>41.98<span class="delta down">&minus;0.94</span></td><td>&minus;0.70</td></tr>
+              <tr class="group"><td colspan="11">LoRA-style parameterization</td></tr>
+              <tr><td>LoRA</td><td>48.6M</td><td>50.94</td><td>10.38</td><td>37.20</td><td>53.20</td><td>37.93</td><td>54.27<span class="delta down">&minus;0.83</span></td><td>24.40<span class="delta up">+0.42</span></td><td>41.64<span class="delta down">&minus;1.28</span></td><td>&minus;0.56</td></tr>
+              <tr><td>NoRA-init</td><td>48.6M</td><td>59.89</td><td>14.24</td><td>39.60</td><td>55.80</td><td>42.38</td><td>54.09<span class="delta down">&minus;1.01</span></td><td>25.10<span class="delta up">+1.11</span></td><td>42.24<span class="delta down">&minus;0.68</span></td><td>&minus;0.19</td></tr>
+              <tr class="row-highlight"><td>NoRA</td><td>48.6M</td><td>61.63</td><td>14.46</td><td>42.10</td><td>55.30</td><td><strong>43.37</strong></td><td>54.00<span class="delta down">&minus;1.10</span></td><td>25.32<span class="delta up">+1.33</span></td><td>42.75<span class="delta down">&minus;0.17</span></td><td><strong>+0.02</strong></td></tr>
+              <tr class="group"><td colspan="11">DoRA-style parameterization</td></tr>
+              <tr><td>DoRA</td><td>49.4M</td><td>51.63</td><td>11.36</td><td>37.80</td><td>52.40</td><td>38.30</td><td>54.20<span class="delta down">&minus;0.90</span></td><td>24.09<span class="delta up">+0.10</span></td><td>41.81<span class="delta down">&minus;1.11</span></td><td>&minus;0.64</td></tr>
+              <tr><td>NoRA-init</td><td>49.4M</td><td>59.59</td><td>14.10</td><td>38.70</td><td>53.20</td><td>41.40</td><td>53.65<span class="delta down">&minus;1.45</span></td><td>24.84<span class="delta up">+0.86</span></td><td>42.32<span class="delta down">&minus;0.60</span></td><td>&minus;0.40</td></tr>
+              <tr class="row-highlight"><td>NoRA</td><td>49.4M</td><td>61.33</td><td>14.44</td><td>42.10</td><td>55.60</td><td><strong>43.34</strong></td><td>54.00<span class="delta down">&minus;1.10</span></td><td>24.59<span class="delta up">+0.58</span></td><td>42.15<span class="delta down">&minus;0.77</span></td><td>&minus;0.43</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <figure>
+          <img src="static/images/fig2-training-dynamics.png" alt="Training loss and gradient norm curves for full finetuning, LoRA, PiSSA and NoRA on the SFT task">
+          <figcaption>Training dynamics on the SFT task. NoRA tracks full finetuning's loss curve far more closely than LoRA or PiSSA, and its gradient norm sits at full-finetuning level from the first steps rather than a fraction of it — stronger learnability with no additional parameters.</figcaption>
+        </figure>
+
+        <p>
+          Two further observations. NoRA outperforms MiSS (42.70) while keeping the down-projection trainable, so the block-identity construction is not doing anything a normalized trainable projection cannot. And the principle transfers: applying Norm<sub><em>r</em></sub> to DoRA lifts its SFT average from 38.30 to 41.40 for NoRA-init and 43.34 for NoRA, which suggests rank-dimension normalization is a general property of low-rank adaptation rather than a LoRA-specific trick.
+        </p>
+
+        <p>
+          Retention comes along for free. NoRA's average change across MMLU, AGIEval and ARC-C is +0.02, against &minus;0.56 for LoRA and &minus;0.70 for MiSS — it improves adaptation without spending the pretrained model's general knowledge to do it.
+        </p>
+
+        <h2 id="rlvr">RLVR: stable where spectral initialization is not</h2>
+
+        <p>
+          Under reinforcement learning with verifiable rewards on DeepSeek-R1-Distill-Qwen-1.5B, LoRA lifts the overall average from 41.0 to 42.8 and NoRA takes it to 44.4 — 3.4 points over the base model and 1.6 over LoRA — with the clearest gains on AMC, MATH500 and Minerva.
+        </p>
+
+        <p>
+          The more striking result is what happens to the spectral-initialization methods. PiSSA and MiLoRA are competitive under supervised finetuning, but here they degrade catastrophically: MiLoRA drops to 18.0 and PiSSA to 0.2, consistent with earlier reports of optimization instability for spectral initialization in RL. NoRA never touches the spectral structure of the pretrained weights, needs no SVD, and stays stable across both regimes.
+        </p>
+
+        <div class="benchmark-table-wrap" role="region" aria-label="RLVR results" tabindex="0">
+          <table class="benchmark-table">
+            <caption>Accuracy and pass rate on the RLVR task (DeepSeek-R1-Distill-Qwen-1.5B, DAPO on DAPO-Math-17K). All numbers are percentages; each pair is average / pass.</caption>
+            <thead>
+              <tr>
+                <th>Method</th>
+                <th>AIME24@32</th><th>AIME25@32</th><th>AMC@32</th><th>HMMT@32</th><th>MATH500@4</th><th>Minerva@4</th><th>Avg.</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>Base</td><td>24.3 / 70.0</td><td>20.4 / 53.3</td><td>64.8 / 95.0</td><td>9.9 / 36.7</td><td>80.9 / 92.8</td><td>27.8 / 43.0</td><td>41.0</td></tr>
+              <tr><td>MiLoRA</td><td>4.2 / 6.7</td><td>0.0 / 0.0</td><td>19.6 / 47.5</td><td>0.0 / 0.0</td><td>44.5 / 63.4</td><td>11.7 / 19.9</td><td>18.0</td></tr>
+              <tr><td>PiSSA</td><td>0.0 / 0.0</td><td>0.0 / 0.0</td><td>0.0 / 0.0</td><td>0.0 / 0.0</td><td>0.6 / 1.0</td><td>0.1 / 0.4</td><td>0.2</td></tr>
+              <tr><td>LoRA</td><td>28.0 / 60.0</td><td>23.1 / 53.3</td><td>68.0 / 97.5</td><td>10.3 / 35.0</td><td>81.3 / 92.2</td><td>30.1 / 46.3</td><td>42.8</td></tr>
+              <tr class="row-highlight"><td>NoRA</td><td>26.7 / 66.7</td><td>23.5 / 46.7</td><td><strong>72.7</strong> / 97.5</td><td>10.3 / 35.0</td><td><strong>84.5</strong> / 92.8</td><td><strong>32.0</strong> / 47.8</td><td><strong>44.4</strong></td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <h2 id="lessons">What we learn</h2>
+
+        <ul class="lesson-list">
+          <li>LoRA's effectiveness depends not only on its rank but on the geometry and scale of its down-projection.</li>
+          <li>The useful part of MLA's normalized latent can be transferred to LoRA without giving up linearity in <em>x</em> or exact mergeability — move the normalization from the feature to the matrix.</li>
+          <li>Normalize along the rank dimension. The input dimension is the wrong axis, and the preconditioning view says why: only diag(<em>P</em>) is corrected by column normalization.</li>
+          <li>Most of the benefit is set at initialization, because <em>A</em>'s gradient vanishes with <em>B</em>. The persistent constraint buys stability, not the bulk of the gain.</li>
+          <li>Methods that depend on the pretrained spectrum can be strong under SFT and fragile under RL. Normalization is cheap, distribution-agnostic, and holds up in both.</li>
+        </ul>
+
+        <h2 id="settings">Settings</h2>
+
+        <p>
+          For NoRA we recommend &alpha; = <em>r</em> as the default, which puts the early gradient norm close to full finetuning. A larger scaling factor such as &alpha; = 2<em>r</em> can fit the loss better in some cases, but we observe increased forgetting of pretrained knowledge; given that trade-off, &alpha; : <em>r</em> = 1 : 1 is the configuration we use and recommend.
+        </p>
+
+        <div class="protocol-grid">
+          <div class="card">
+            <div class="card-num">Pretraining</div>
+            <div class="card-title">MLA and MHA, 340M</div>
+            <p class="card-text">FLA repository, MLA / MHA at L24-D1024. AdamW, peak LR 3&times;10<sup>&minus;4</sup>, &epsilon; = 10<sup>&minus;15</sup>, cosine decay to 10%, 1,024 warmup steps, 20,480 steps, batch 256, sequence length 2,048, grad clip 1.0. Evaluated on LAMBADA, WikiText, ARC-e/c, HellaSwag, PIQA, OpenBookQA, WinoGrande.</p>
+          </div>
+          <div class="card">
+            <div class="card-num">SFT</div>
+            <div class="card-title">Llama-3.2-3B</div>
+            <p class="card-text">MetaMath and CodeFeedback. Rank 32, &alpha; = 32 for NoRA (64 for LoRA/DoRA/rsLoRA, 32 for PiSSA), dropout 0.0, AdamW, LR 2e-5, cosine decay, batch 128, warmup ratio 0.3, 1 epoch, targeting Q, K, V, O, Up, Down, Gate. Evaluated on GSM8K, Math500, HumanEval, MBPP; retention on MMLU, AGIEval, ARC-C.</p>
+          </div>
+          <div class="card">
+            <div class="card-num">RLVR</div>
+            <div class="card-title">DeepSeek-R1-Distill-Qwen-1.5B</div>
+            <p class="card-text">DAPO objective on DAPO-Math-17K, 8 GPUs, bfloat16. LR 1&times;10<sup>&minus;5</sup>, cosine schedule, no warmup, 1,024 steps, batch 128, rank 32, &alpha; = 64, dropout 0.05, 8 responses per prompt, prompt length 512, completion length 16,384, &epsilon;<sub>high</sub> = 0.28, &beta; = 0.</p>
+          </div>
+          <div class="card">
+            <div class="card-num">Benchmarks</div>
+            <div class="card-title">Math and reasoning</div>
+            <p class="card-text">RLVR is evaluated on AIME24 and AIME25 (Avg@32), AMC (Avg@32), HMMT (Avg@32), MATH500 (Avg@4) and Minerva (Avg@4). Pretraining uses lm-evaluation-harness for commonsense tasks; the recall-intensive LAMBADA setting follows prefix-linear-attention with 2K input tokens.</p>
+          </div>
+        </div>
+
+        <h2 id="resources">Code and resources</h2>
+
+        <p>
+          NoRA is a few lines on top of an existing LoRA implementation: normalize the columns of the down-projection in the forward pass (NoRA), or once at construction time (NoRA-init / BIMI). No extra trainable parameters, no inference-time computation, no change to the optimizer, and the adapter still merges exactly.
+        </p>
+
+        <div class="resource-row">
+          <div>
+            <!-- TODO(fill in): swap for a rendered first page of the camera-ready -->
+            <img class="paper-preview" src="static/images/paper-preview-01.png" alt="NoRA paper first page preview">
+          </div>
+          <div class="resource-box">
+            <p><strong>Repository contents.</strong></p>
+            <ul>
+              <li>NoRA and NoRA-init adapters, plus BIMI initialization.</li>
+              <li>Pretraining entrypoints for the MLA and MHA settings.</li>
+              <li>SFT and RLVR training and evaluation scripts.</li>
+              <li>Gradient-norm and training-dynamics logging.</li>
+              <li>Merge utilities for exporting merged checkpoints.</li>
+            </ul>
+<pre><code>bash setup_env.sh
+
+python run.py train pretrain ...
+python run.py train sft   --peft nora
+python run.py train rl    --peft nora
+python run.py eval  ...
+python run.py merge ...</code></pre>
+          </div>
+        </div>
+
+        <h2 id="authors">Authors</h2>
+
+        <p class="authors-list">
+          Jiale Kang<sup>1,3</sup>,
+          Ziyin Yue,
+          Zheng Zhan<sup>2</sup>,
+          Yangyi Huang<sup>3</sup>,
+          and Weiyang Liu<sup>3,4,*</sup>.
+        </p>
+        <p class="authors-affiliations">
+          <sup>1</sup>Yuanshi Intelligence &nbsp;
+          <sup>2</sup>Microsoft Research &nbsp;
+          <sup>3</sup>The Chinese University of Hong Kong &nbsp;
+          <sup>4</sup>Shenzhen Loop Area Institute.
+        </p>
+        <p class="authors-notes">
+          <sup>*</sup>Corresponding author.
+        </p>
+
+        <h2 id="citation">Citation</h2>
+
+<pre><code>@article{kang2026nora,
+      title={Normalized Low-Rank Adaptation},
+      author={Kang, Jiale and Yue, Ziyin and Zhan, Zheng and Huang, Yangyi and Liu, Weiyang},
+      journal={arXiv preprint arXiv:XXXX.XXXXX},
+      year={2026}}</code></pre>
+
+      </article>
+    </div>
+  </main>
+</div>
+
+<script>
+  (() => {
+    const toc = document.querySelector('#left-toc');
+    if (!toc) return;
+
+    const marker = toc.querySelector('.toc-active-marker');
+    const links = Array.from(toc.querySelectorAll('a[href^="#"]'));
+    const sections = links
+      .map((link) => {
+        const id = link.getAttribute('href').slice(1);
+        const section = document.getElementById(id);
+        return section ? { id, link, item: link.closest('.toc-item'), section } : null;
+      })
+      .filter(Boolean);
+
+    const setActive = (entry) => {
+      if (!entry || !entry.item) return;
+      sections.forEach(({ link, item }) => {
+        link.classList.remove('is-active');
+        link.removeAttribute('aria-current');
+        item?.classList.remove('is-active', 'is-marker-target');
+      });
+      entry.link.classList.add('is-active');
+      entry.link.setAttribute('aria-current', 'location');
+      entry.item.classList.add('is-active', 'is-marker-target');
+
+      if (marker) {
+        const itemRect = entry.item.getBoundingClientRect();
+        const tocRect = toc.getBoundingClientRect();
+        const markerY = itemRect.top - tocRect.top + toc.scrollTop + itemRect.height / 2;
+        marker.style.setProperty('--toc-active-marker-y', `${markerY}px`);
+      }
+    };
+
+    const updateActiveFromScroll = () => {
+      const probeY = window.innerHeight * 0.35;
+      let active = sections[0];
+      for (const entry of sections) {
+        const rect = entry.section.getBoundingClientRect();
+        if (rect.top <= probeY) active = entry;
+      }
+      setActive(active);
+    };
+
+    let ticking = false;
+    const requestUpdate = () => {
+      if (ticking) return;
+      ticking = true;
+      window.requestAnimationFrame(() => {
+        updateActiveFromScroll();
+        ticking = false;
+      });
+    };
+
+    links.forEach((link) => {
+      link.addEventListener('click', () => {
+        const entry = sections.find(({ link: candidate }) => candidate === link);
+        setActive(entry);
+      });
+    });
+
+    window.addEventListener('scroll', requestUpdate, { passive: true });
+    window.addEventListener('resize', requestUpdate);
+    updateActiveFromScroll();
+  })();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,94 @@
+/* Body typography for long-form posts. */
+
+#main.post article.content {
+  font-family: var(--font-serif);
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--fg1);
+  padding-top: 0.5rem;
+}
+
+#main.post article.content p {
+  margin: 0 0 1.45rem;
+  font-size: 1.05rem;
+  line-height: 1.7;
+  color: var(--fg1);
+}
+
+#main.post article.content h2 {
+  font-family: var(--font-serif);
+  font-size: 1.45rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fg);
+  margin: 3.1rem 0 1.2rem;
+  scroll-margin-top: calc(var(--site-header-height) + 1.5rem);
+}
+
+#main.post article.content h3 {
+  font-family: var(--font-serif);
+  font-size: 1.16rem;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--fg);
+  margin: 2.4rem 0 0.9rem;
+  scroll-margin-top: calc(var(--site-header-height) + 1.5rem);
+}
+
+#main.post article.content h2 + h3 { margin-top: 1.6rem; }
+
+#main.post article.content ul,
+#main.post article.content ol {
+  margin: 1rem 0 1.6rem;
+  padding-left: 1.3rem;
+}
+
+#main.post article.content li { margin: 0.55rem 0; }
+
+#main.post article.content blockquote {
+  border-left: 2px solid color-mix(in srgb, var(--fg) 21%, var(--bg) 79%);
+  color: var(--fg2);
+  margin: 1.6rem 0 1.6rem 1rem;
+  padding: 0.1rem 0 0.1rem 1.25rem;
+}
+
+#main.post article.content blockquote p:last-child { margin-bottom: 0; }
+
+#main.post article.content blockquote.epigraph {
+  font-style: italic;
+  font-size: 1.05rem;
+  line-height: 1.5;
+  color: var(--fg2);
+  margin: 1.2rem 0 1.2rem 1rem;
+  padding: 0 1.25rem;
+  border-left: 2px solid color-mix(in srgb, var(--fg) 21%, var(--bg) 79%);
+  max-width: 100%;
+}
+
+#main.post article.content strong { font-weight: 600; color: var(--fg); }
+
+#main.post article.content figure {
+  margin: 1.6rem 0 1.8rem;
+}
+
+#main.post article.content figure img {
+  display: block;
+  width: 100%;
+  height: auto;
+  margin: 0 auto;
+}
+
+#main.post article.content figcaption {
+  font-family: var(--font-sans);
+  font-size: var(--post-caption-font-size);
+  line-height: 1.45;
+  color: var(--fg3);
+  margin-top: 0.6rem;
+}
+
+#main.post article.content sup {
+  font-family: var(--font-serif);
+  font-size: 0.72em;
+  font-weight: 600;
+  line-height: 0;
+}
