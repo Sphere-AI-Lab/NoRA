@@ -94,7 +94,6 @@
           <li class="toc-item"><a href="#rlvr">RLVR</a></li>
           <li class="toc-item"><a href="#lessons">What we learn</a></li>
           <li class="toc-item"><a href="#settings">Settings</a></li>
-          <li class="toc-item"><a href="#resources">Resources</a></li>
           <li class="toc-item"><a href="#authors">Authors</a></li>
           <li class="toc-item"><a href="#citation">Citation</a></li>
         </ul>
@@ -424,36 +423,6 @@
             <div class="card-num">Benchmarks</div>
             <div class="card-title">Math and reasoning</div>
             <p class="card-text">RLVR is evaluated on AIME24 and AIME25 (Avg@32), AMC (Avg@32), HMMT (Avg@32), MATH500 (Avg@4) and Minerva (Avg@4). Pretraining uses lm-evaluation-harness for commonsense tasks; the recall-intensive LAMBADA setting follows prefix-linear-attention with 2K input tokens.</p>
-          </div>
-        </div>
-
-        <h2 id="resources">Code and resources</h2>
-
-        <p>
-          NoRA is a few lines on top of an existing LoRA implementation: normalize the columns of the down-projection in the forward pass (NoRA), or once at construction time (NoRA-init / BIMI). No extra trainable parameters, no inference-time computation, no change to the optimizer, and the adapter still merges exactly.
-        </p>
-
-        <div class="resource-row">
-          <div>
-            <!-- TODO(fill in): swap for a rendered first page of the camera-ready -->
-            <img class="paper-preview" src="static/images/paper-preview-01.png" alt="NoRA paper first page preview">
-          </div>
-          <div class="resource-box">
-            <p><strong>Repository contents.</strong></p>
-            <ul>
-              <li>NoRA and NoRA-init adapters, plus BIMI initialization.</li>
-              <li>Pretraining entrypoints for the MLA and MHA settings.</li>
-              <li>SFT and RLVR training and evaluation scripts.</li>
-              <li>Gradient-norm and training-dynamics logging.</li>
-              <li>Merge utilities for exporting merged checkpoints.</li>
-            </ul>
-<pre><code>bash setup_env.sh
-
-python run.py train pretrain ...
-python run.py train sft   --peft nora
-python run.py train rl    --peft nora
-python run.py eval  ...
-python run.py merge ...</code></pre>
           </div>
         </div>
 
